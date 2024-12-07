@@ -2,6 +2,7 @@
 
 # Create project directory structure
 mkdir -p .github/workflows
+touch .github/topics.yml
 mkdir -p src
 
 # Create main Python script
