@@ -1,0 +1,62 @@
+name: Bitcoin Price Tracker
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # Run every 15 minutes
+  workflow_dispatch:  # Allow manual triggers for testing
+
+jobs:
+  check_bitcoin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5  # Set timeout to avoid hanging jobs
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'  # Enable pip caching
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Run Bitcoin tracker
+      env:
+        SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+        TO_EMAIL: ${{ secrets.TO_EMAIL }}
+      run: |
+        python src/bitcoin_tracker.py
+        
+    - name: Report failure
+      if: failure()
+      env:
+        SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+        TO_EMAIL: ${{ secrets.TO_EMAIL }}
+      run: |
+        echo "Sending failure notification..."
+        python -c "
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        import os
+        
+        message = Mail(
+            from_email=os.environ['FROM_EMAIL'],
+            to_emails=os.environ['TO_EMAIL'],
+            subject='Bitcoin Tracker Workflow Failed',
+            html_content='The Bitcoin tracker GitHub Action has failed. Please check the logs.'
+        )
+        
+        try:
+            sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+            sg.send(message)
+            print('Failure notification sent')
+        except Exception as e:
+            print(f'Error sending failure notification: {str(e)}')
+        "
